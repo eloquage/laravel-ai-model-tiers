@@ -158,3 +158,29 @@ it('resolves custom string tasks via custom_tasks config', function () {
 it('throws for unknown custom string tasks', function () {
     (new ModelTierResolver)->resolve(ModelTier::Auto, 'unknown_task');
 })->throws(InvalidArgumentException::class, 'Unknown AI task: unknown_task');
+
+it('resolves local tier to gemini for commit_message task', function () {
+    config([
+        'ai-model-tiers.custom_tasks' => [
+            'commit_message' => 'local',
+        ],
+        'ai-model-tiers.task_defaults' => array_merge(
+            config('ai-model-tiers.task_defaults', []),
+            ['commit_message' => 'local'],
+        ),
+        'ai-model-tiers.profiles.local' => [
+            'text' => ['provider' => 'gemini', 'model' => 'gemini-2.5-flash-lite'],
+            'embedding' => ['provider' => 'ollama', 'model' => 'nomic-embed-text'],
+            'timeout' => 120,
+        ],
+        'ai-model-tiers.failover.text.local' => [
+            'gemini' => 'gemini-2.5-flash-lite',
+        ],
+    ]);
+
+    $profile = (new ModelTierResolver)->resolve(ModelTier::Auto, 'commit_message');
+
+    expect($profile->provider)->toBe('gemini')
+        ->and($profile->model)->toBe('gemini-2.5-flash-lite')
+        ->and($profile->failoverOrSingle())->toBe(['gemini' => 'gemini-2.5-flash-lite']);
+});

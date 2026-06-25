@@ -18,10 +18,17 @@ return [
     ],
 
     'custom_tasks' => [
-        // 'my_report' => 'fast',
+        'commit_message' => 'local',
+        'code_review' => 'complex',
+        'conflict_resolution' => 'local',
     ],
 
     'profiles' => [
+        'local' => [
+            'text' => ['provider' => 'gemini', 'model' => 'gemini-2.5-flash-lite'],
+            'embedding' => ['provider' => 'ollama', 'model' => 'nomic-embed-text'],
+            'timeout' => 120,
+        ],
         'cost' => [
             'text' => ['provider' => 'deepseek', 'model' => 'deepseek-chat'],
             'embedding' => ['provider' => 'ollama', 'model' => 'nomic-embed-text'],
@@ -48,11 +55,14 @@ return [
             ],
             'fast' => [
                 'deepseek' => 'deepseek-chat',
-                'gemini' => 'gemini-2.0-flash',
+                'gemini' => 'gemini-2.5-flash-lite',
             ],
             'cost' => [
                 'deepseek' => 'deepseek-chat',
                 'ollama' => 'llama3.2',
+            ],
+            'local' => [
+                'gemini' => 'gemini-2.5-flash-lite',
             ],
         ],
         'embedding' => [

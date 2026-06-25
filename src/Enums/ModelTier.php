@@ -10,6 +10,7 @@ enum ModelTier: string
     case Cost = 'cost';
     case Fast = 'fast';
     case Complex = 'complex';
+    case Local = 'local';
 
     public static function tryFromString(?string $value): ?self
     {
