@@ -1,93 +1,116 @@
-# :package_description
+# Laravel AI Model Tiers
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-[![GitHub Tests Action Status](https://github.com/spatie/package-skeleton-laravel/actions/workflows/run-tests.yml/badge.svg)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://github.com/spatie/package-skeleton-laravel/actions/workflows/fix-php-code-style-issues.yml/badge.svg)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-<!--delete-->
----
-This repo can be used to scaffold a Laravel package. Follow these steps to get started:
-
-1. Press the "Use this template" button at the top of this repo to create a new repo with the contents of this skeleton.
-2. Run "php ./configure.php" to run a script that will replace all placeholders throughout all the files.
-3. Have fun creating your package.
-4. If you need help creating a package, consider picking up our <a href="https://laravelpackage.training">Laravel Package Training</a> video course.
----
-<!--/delete-->
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
-
-## Support us
-
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/:package_name.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/:package_name)
-
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
+Model tier resolution (`auto`, `cost`, `fast`, `complex`) with task-aware heuristics and provider failover chains.
+Designed to pair with [Laravel AI SDK](https://github.com/laravel/ai) — this package resolves **which** provider/model
+to use; your app passes the result into AI SDK calls.
 
 ## Installation
 
-You can install the package via composer:
-
 ```bash
-composer require :vendor_slug/:package_slug
+composer require eloquage/laravel-ai-model-tiers
 ```
 
-You can publish and run the migrations with:
+Publish the config (optional):
 
 ```bash
-php artisan vendor:publish --tag=":package_slug-migrations"
-php artisan migrate
-```
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag=":package_slug-config"
-```
-
-This is the contents of the published config file:
-
-```php
-return [
-];
-```
-
-Optionally, you can publish the views using
-
-```bash
-php artisan vendor:publish --tag=":package_slug-views"
+php artisan vendor:publish --tag="laravel-ai-model-tiers-config"
 ```
 
 ## Usage
 
 ```php
-$:variable = new VendorName\Skeleton();
-echo $:variable->echoPhrase('Hello, VendorName!');
+use Eloquage\LaravelAiModelTiers\Enums\AiTask;
+use Eloquage\LaravelAiModelTiers\ModelTierResolver;
+
+$profile = app(ModelTierResolver::class)->resolve('auto', AiTask::Translation, [
+    'token_estimate' => (int) (strlen($text) / 4),
+    'legal_document' => true,
+]);
+
+$response = $agent->prompt(
+    $text,
+    provider: $profile->failoverOrSingle(),
+    model: $profile->model,
+    timeout: $profile->timeout,
+);
 ```
+
+### Embeddings
+
+```php
+$profile = app(ModelTierResolver::class)->forEmbeddings();
+
+$embedding = Embeddings::for($text)
+    ->generate(provider: $profile->failoverOrSingle(), model: $profile->model);
+```
+
+## Tiers
+
+| Tier      | Purpose                                           |
+|-----------|---------------------------------------------------|
+| `auto`    | Resolves via task defaults and context heuristics |
+| `cost`    | Default economical text model                     |
+| `fast`    | Low-latency model for short, simple tasks         |
+| `complex` | High-capability model for demanding work          |
+
+## Context keys
+
+When using `ModelTier::Auto`, pass optional context to influence heuristics:
+
+| Key                 | Type   | Effect                                      |
+|---------------------|--------|---------------------------------------------|
+| `token_estimate`    | `int`  | Large values → complex; small values → fast |
+| `attachment_count`  | `int`  | More than one → complex                     |
+| `structured_output` | `bool` | `true` → complex                            |
+| `legal_document`    | `bool` | `true` → complex                            |
+
+## Built-in tasks
+
+`AiTask` enum: `Translation`, `OcrVision`, `Embedding`, `Summarization`, `Correlation`, `StructuredExtraction`.
+
+Per-task defaults are configured under `task_defaults` in `config/ai-model-tiers.php`.
+
+## Custom tasks
+
+Add app-specific tasks without modifying the enum:
+
+```php
+// config/ai-model-tiers.php
+'custom_tasks' => [
+    'my_report' => 'fast',
+],
+```
+
+Custom tasks are merged into `task_defaults` at boot. Pass the task as a string:
+
+```php
+$resolver->resolve('auto', 'my_report');
+```
+
+Auto heuristics apply only to built-in `AiTask` enum cases. Unknown custom tasks default to the `cost` tier unless
+overridden in `custom_tasks`.
+
+## Configuration
+
+Key settings in `config/ai-model-tiers.php`:
+
+- `default_tier` — fallback when no tier is specified
+- `embedding_tier` — tier used by `forEmbeddings()`
+- `task_defaults` — per-task tier overrides for `auto` resolution
+- `profiles` — provider/model/timeout per tier (`text` and `embedding` kinds)
+- `failover` — provider failover chains per tier and kind
+- `auto` — token thresholds for heuristic resolution
+
+Provider strings (`deepseek`, `openai`, etc.) must match your Laravel AI SDK provider configuration.
 
 ## Testing
 
 ```bash
 composer test
+composer analyse
+composer format
 ```
-
-## Changelog
-
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
-
-## Security Vulnerabilities
-
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
-
-## Credits
-
-- [:author_name](https://github.com/:author_username)
-- [All Contributors](../../contributors)
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+MIT.
