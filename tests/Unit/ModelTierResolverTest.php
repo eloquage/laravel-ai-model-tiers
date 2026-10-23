@@ -8,6 +8,7 @@ use Eloquage\LaravelAiModelTiers\ModelTierResolver;
 beforeEach(function () {
     config([
         'ai-model-tiers' => [
+            'default_tier' => 'auto',
             'embedding_tier' => 'cost',
             'task_defaults' => [
                 'translation' => 'complex',
@@ -56,6 +57,15 @@ it('resolves cost tier for text tasks', function () {
         ->and($profile->provider)->toBe('deepseek')
         ->and($profile->model)->toBe('deepseek-chat')
         ->and($profile->timeout)->toBe(60);
+});
+
+it('uses the configured default tier when no tier is supplied', function () {
+    config(['ai-model-tiers.default_tier' => 'fast']);
+
+    $profile = (new ModelTierResolver)->resolve(null, AiTask::Summarization);
+
+    expect($profile->model)->toBe('fast-model')
+        ->and($profile->timeout)->toBe(45);
 });
 
 it('resolves complex tier with failover chain', function () {

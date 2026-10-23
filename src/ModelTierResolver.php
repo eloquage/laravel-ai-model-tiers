@@ -33,7 +33,7 @@ class ModelTierResolver
      * }  $context
      */
     public function resolve(
-        ModelTier|string $tier,
+        ModelTier|string|null $tier,
         AiTask|string $task,
         array $context = [],
     ): AiModelProfile {
@@ -44,10 +44,15 @@ class ModelTierResolver
         return $this->buildProfile($resolvedTier, $taskKey);
     }
 
-    private function normalizeTier(ModelTier|string $tier): ModelTier
+    private function normalizeTier(ModelTier|string|null $tier): ModelTier
     {
         if ($tier instanceof ModelTier) {
             return $tier;
+        }
+
+        if ($tier === null) {
+            $configured = config('ai-model-tiers.default_tier', 'auto');
+            $tier = is_string($configured) ? $configured : 'auto';
         }
 
         return ModelTier::tryFromString($tier) ?? ModelTier::Auto;

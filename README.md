@@ -1,116 +1,88 @@
+<p align="center"><img src="art/banner.png" alt="Laravel AI Model Tiers" width="100%"></p>
+
 # Laravel AI Model Tiers
 
-Model tier resolution (`auto`, `cost`, `fast`, `complex`) with task-aware heuristics and provider failover chains.
-Designed to pair with [Laravel AI SDK](https://github.com/laravel/ai) — this package resolves **which** provider/model
-to use; your app passes the result into AI SDK calls.
+[![Tests](https://github.com/eloquage/laravel-ai-model-tiers/actions/workflows/run-tests.yml/badge.svg)](https://github.com/eloquage/laravel-ai-model-tiers/actions/workflows/run-tests.yml)
 
-## Installation
+Resolve a provider, model, timeout, and failover chain for a built-in or custom AI task. Your application passes the resolved profile to its AI client.
+
+## Requirements
+
+- PHP 8.4 or newer
+- Laravel 11, 12, or 13
+
+The Laravel AI SDK is optional and is not installed by this package. Install it separately if you use the integration examples from that SDK.
+
+## Install
 
 ```bash
 composer require eloquage/laravel-ai-model-tiers
 ```
 
-Publish the config (optional):
+Laravel discovers the service provider automatically. To edit the package settings, publish its config:
 
 ```bash
-php artisan vendor:publish --tag="laravel-ai-model-tiers-config"
+php artisan vendor:publish --tag=laravel-ai-model-tiers-config
 ```
 
-## Usage
+## Resolve a profile
+
+Pass a tier and task. Use `null` as the tier to use `default_tier` from the package config. With `auto`, built-in task defaults and context signals select the tier.
 
 ```php
 use Eloquage\LaravelAiModelTiers\Enums\AiTask;
 use Eloquage\LaravelAiModelTiers\ModelTierResolver;
 
-$profile = app(ModelTierResolver::class)->resolve('auto', AiTask::Translation, [
-    'token_estimate' => (int) (strlen($text) / 4),
-    'legal_document' => true,
-]);
+$text = 'Translate this legal document.';
 
-$response = $agent->prompt(
-    $text,
-    provider: $profile->failoverOrSingle(),
-    model: $profile->model,
-    timeout: $profile->timeout,
+$profile = app(ModelTierResolver::class)->resolve(
+    tier: 'auto',
+    task: AiTask::Translation,
+    context: [
+        'token_estimate' => (int) (strlen($text) / 4),
+        'legal_document' => true,
+    ],
 );
+
+$profile->provider;          // e.g. deepseek
+$profile->model;             // e.g. deepseek-chat
+$profile->timeout;           // seconds
+$profile->failoverOrSingle(); // provider/model chain, or the single provider
 ```
 
-### Embeddings
+For embeddings, the resolver uses `embedding_tier`:
 
 ```php
 $profile = app(ModelTierResolver::class)->forEmbeddings();
-
-$embedding = Embeddings::for($text)
-    ->generate(provider: $profile->failoverOrSingle(), model: $profile->model);
 ```
 
-## Tiers
+## Tiers and tasks
 
-| Tier      | Purpose                                           |
-|-----------|---------------------------------------------------|
-| `auto`    | Resolves via task defaults and context heuristics |
-| `cost`    | Default economical text model                     |
-| `fast`    | Low-latency model for short, simple tasks         |
-| `complex` | High-capability model for demanding work          |
+Built-in tiers are `auto`, `cost`, `fast`, `complex`, and `local`. Built-in tasks are `translation`, `ocr_vision`, `embedding`, `summarization`, `correlation`, and `structured_extraction`.
 
-## Context keys
-
-When using `ModelTier::Auto`, pass optional context to influence heuristics:
-
-| Key                 | Type   | Effect                                      |
-|---------------------|--------|---------------------------------------------|
-| `token_estimate`    | `int`  | Large values → complex; small values → fast |
-| `attachment_count`  | `int`  | More than one → complex                     |
-| `structured_output` | `bool` | `true` → complex                            |
-| `legal_document`    | `bool` | `true` → complex                            |
-
-## Built-in tasks
-
-`AiTask` enum: `Translation`, `OcrVision`, `Embedding`, `Summarization`, `Correlation`, `StructuredExtraction`.
-
-Per-task defaults are configured under `task_defaults` in `config/ai-model-tiers.php`.
-
-## Custom tasks
-
-Add app-specific tasks without modifying the enum:
+Register custom tasks in `config/ai-model-tiers.php`:
 
 ```php
-// config/ai-model-tiers.php
 'custom_tasks' => [
-    'my_report' => 'fast',
+    'commit_message' => 'local',
 ],
 ```
 
-Custom tasks are merged into `task_defaults` at boot. Pass the task as a string:
-
-```php
-$resolver->resolve('auto', 'my_report');
-```
-
-Auto heuristics apply only to built-in `AiTask` enum cases. Unknown custom tasks default to the `cost` tier unless
-overridden in `custom_tasks`.
+Pass the custom task as a string: `$resolver->resolve('auto', 'commit_message')`. Custom tasks use their configured tier; without one they resolve to `cost`.
 
 ## Configuration
 
-Key settings in `config/ai-model-tiers.php`:
+The config file defines `default_tier`, `embedding_tier`, `task_defaults`, `custom_tasks`, provider/model `profiles`, per-tier `failover` chains, and the token thresholds under `auto`. Provider names must match the provider keys configured by your AI client.
 
-- `default_tier` — fallback when no tier is specified
-- `embedding_tier` — tier used by `forEmbeddings()`
-- `task_defaults` — per-task tier overrides for `auto` resolution
-- `profiles` — provider/model/timeout per tier (`text` and `embedding` kinds)
-- `failover` — provider failover chains per tier and kind
-- `auto` — token thresholds for heuristic resolution
-
-Provider strings (`deepseek`, `openai`, etc.) must match your Laravel AI SDK provider configuration.
-
-## Testing
+## Checks
 
 ```bash
 composer test
+composer test-coverage
 composer analyse
 composer format
 ```
 
 ## License
 
-MIT.
+MIT. See [LICENSE.md](LICENSE.md).
